@@ -185,11 +185,11 @@ module.exports = {
 
 
 
- createLeaveRequest: async (req, res) => {
+createLeaveRequest: async (req, res) => {
     try {
       const { employeeId } = req.params;
-      const { leave_type, start_date, end_date, reason } = req.body;
-  
+      const { leave_type, start_date, end_date, reason, managerId } = req.body; // Added managerId from payload
+      
       // Validate dates using moment
       const start = moment(start_date);
       const end = moment(end_date);
@@ -207,7 +207,7 @@ module.exports = {
   
       // Fetch employee joining date
       const [employeeData] = await pool.query(
-        'SELECT joining_date FROM employees WHERE id = ?',
+        'SELECT joining_date, reporting_manager_id FROM employees WHERE id = ?',
         [employeeId]
       );
   
@@ -216,7 +216,6 @@ module.exports = {
       }
   
       const joiningDate = moment(employeeData[0].joining_date);
-      // The leave start date must be after the end of the joining month
       const joinMonthEnd = joiningDate.clone().endOf('month');
   
       if (start.isSameOrBefore(joinMonthEnd)) {
@@ -225,14 +224,14 @@ module.exports = {
         });
       }
   
-      const leaveMonth = start.month() + 1; // month number 1-12
+      const leaveMonth = start.month() + 1;
       const leaveYear = start.year();
   
       // Calculate business days (Mon-Fri)
       let days = 0;
       let current = start.clone();
       while (current.isSameOrBefore(end)) {
-        if (current.isoWeekday() < 6) days++; // count Mon-Fri only
+        if (current.isoWeekday() < 6) days++;
         current.add(1, 'day');
       }
       if (days <= 0) {
@@ -252,7 +251,7 @@ module.exports = {
       }
       const monthlyQuota = leaveQuotas[leave_type].monthly;
   
-      // Get how many leave days have been approved for employee this leave type this month
+      // Get monthly usage
       const [monthlyUsage] = await pool.query(`
         SELECT COALESCE(SUM(days), 0) as used_days
         FROM leave_records
@@ -263,7 +262,7 @@ module.exports = {
           AND YEAR(start_date) = ?
       `, [employeeId, leave_type, leaveMonth, leaveYear]);
   
-      // Get approved leaves in previous months of the same year (for rollover)
+      // Get approved leaves in previous months
       const [allUsage] = await pool.query(`
         SELECT MONTH(start_date) as month, SUM(days) as used_days
         FROM leave_records
@@ -276,7 +275,7 @@ module.exports = {
         ORDER BY MONTH(start_date)
       `, [employeeId, leave_type, leaveYear, leaveMonth]);
   
-      // Calculate rollover from previous months (max 2x monthly quota)
+      // Calculate rollover
       let cumulativeRollover = 0;
       for (let m = 1; m < leaveMonth; m++) {
         const used = allUsage.find(u => u.month === m)?.used_days || 0;
@@ -286,11 +285,10 @@ module.exports = {
         cumulativeRollover = Math.min(remaining, monthlyQuota * 2);
       }
   
-      // Calculate how many leaves are available this month including rollover
+      // Calculate available leaves
       const availableThisMonth = monthlyQuota + cumulativeRollover;
       const remainingThisMonth = availableThisMonth - monthlyUsage[0].used_days;
   
-      // Check if requested days exceed remaining leave balance
       if (days > remainingThisMonth) {
         return res.status(400).json({ 
           error: 'Insufficient monthly leave balance',
@@ -302,16 +300,14 @@ module.exports = {
         });
       }
   
-      // Get employee's reporting manager for approval
-      const [employee] = await pool.query(
-        'SELECT reporting_manager_id FROM employees WHERE id = ?', 
-        [employeeId]
-      );
-      if (!employee.length || !employee[0].reporting_manager_id) {
+      // Use managerId from payload if provided, otherwise from employee record
+      const reporting_manager_id = managerId || employeeData[0].reporting_manager_id;
+      
+      if (!reporting_manager_id) {
         return res.status(400).json({ error: 'No reporting manager assigned' });
       }
   
-      // Create leave request with status 'pending'
+      // Create leave request
       const leaveId = uuidv4();
       await pool.query(`
         INSERT INTO leave_records (
@@ -330,7 +326,7 @@ module.exports = {
         reason,
         'pending',
         new Date(),
-        employee[0].reporting_manager_id
+        reporting_manager_id
       ]);
   
       return res.status(201).json({ 
