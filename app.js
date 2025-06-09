@@ -13,7 +13,7 @@ const server = http.createServer(app);
 
 // Configuration
 const PORT = process.env.PORT || 5000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://hr-panel-xi.vercel.app';
 
 // ✅ Middleware Setup
 app.use(cors({
