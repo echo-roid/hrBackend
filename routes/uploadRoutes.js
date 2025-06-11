@@ -23,7 +23,7 @@ router.post("/", upload.single("file"), (req, res) => {
   }
 
   // Send back the file URL or path
-  const fileUrl = `hrbackend-production-34b4.up.railway.app/uploads/${req.file.filename}`;
+  const fileUrl = `https://hrbackend-production-34b4.up.railway.app/uploads/${req.file.filename}`;
   res.json({ url: fileUrl });
 });
 

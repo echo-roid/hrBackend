@@ -595,11 +595,11 @@ getAllLeaves: async (req, res) => {
         const formattedLeave = {
           ...leave,
           employee_photo: leave.employee_photo 
-            ? `hrbackend-production-34b4.up.railway.app/uploads/${leave.employee_photo}`
+            ? `https://hrbackend-production-34b4.up.railway.app/uploads/${leave.employee_photo}`
             : null,
           manager_name: leave.manager_name || 'Not Assigned',
           manager_photo: leave.manager_photo 
-            ? `hrbackend-production-34b4.up.railway.app/uploads/${leave.manager_photo}`
+            ? `https://hrbackend-production-34b4.up.railway.app/uploads/${leave.manager_photo}`
             : null,
           manager_id: leave.manager_id || null,
           manager_comments: leave.manager_comments || null

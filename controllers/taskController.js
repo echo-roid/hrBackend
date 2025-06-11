@@ -119,7 +119,7 @@ getUserTasks: async (req, res) => {
         acc[curr.task_id].push({
           id: curr.id,
           name: curr.name,
-          photo: ` hrbackend-production-34b4.up.railway.app/uploads/${curr.photo}` || `https://i.pravatar.cc/150?u=${curr.id}`, // fallback photo
+          photo: ` https://hrbackend-production-34b4.up.railway.app/uploads/${curr.photo}` || `https://i.pravatar.cc/150?u=${curr.id}`, // fallback photo
           is_creator: curr.is_creator
         });
         return acc;
