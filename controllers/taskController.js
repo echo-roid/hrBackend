@@ -119,7 +119,7 @@ getUserTasks: async (req, res) => {
         acc[curr.task_id].push({
           id: curr.id,
           name: curr.name,
-          photo: ` https://hrbackend-production-34b4.up.railway.app/uploads/${curr.photo}` || `https://i.pravatar.cc/150?u=${curr.id}`, // fallback photo
+          photo: ` hrbackend-production-34b4.up.railway.app/uploads/${curr.photo}` || `https://i.pravatar.cc/150?u=${curr.id}`, // fallback photo
           is_creator: curr.is_creator
         });
         return acc;
@@ -236,11 +236,27 @@ updateTaskStatus:async (req, res) => {
   }
 },
 
+
+
 sendTaskNotification: async (req, res) => {
   const { task_id, title, message, type } = req.body;
 
   if (!task_id || !title || !message || !type) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const typeMapping = {
+    info: 'task_assignment',
+    warning: 'task_reminder',
+    urgent: 'task_reminder',
+    update: 'task_update'
+  };
+
+  const mappedType = typeMapping[type];
+  if (!mappedType) {
+    return res.status(400).json({
+      error: `Invalid type value. Must be one of: ${Object.keys(typeMapping).join(', ')}`
+    });
   }
 
   try {
@@ -264,7 +280,7 @@ sendTaskNotification: async (req, res) => {
           task_id,
           title,
           message,
-          type
+          mappedType
         ]
       );
     }
@@ -275,7 +291,8 @@ sendTaskNotification: async (req, res) => {
     console.error('Error sending manual task notification:', err);
     res.status(500).json({ error: 'Failed to send task notifications', details: err.message });
   }
-},
+}
+,
 
 // Backend API to get notifications for a user
 getTaskNotifications: async (req, res) => {
@@ -296,6 +313,120 @@ getTaskNotifications: async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 }
+,
+editTask: async (req, res) => {
+  const taskId = req.params.id;
+  const {
+    task_name, description, priority, tag_label,
+    assign_datetime, end_datetime, included_people
+  } = req.body;
+
+  try {
+    await pool.query('START TRANSACTION');
+
+    // 1. Update main task info
+    await pool.query(
+      `UPDATE tasks 
+       SET task_name = ?, description = ?, priority = ?, tag_label = ?, 
+           assign_datetime = ?, end_datetime = ?
+       WHERE id = ?`,
+      [
+        task_name, description, priority, tag_label,
+        assign_datetime, end_datetime, taskId
+      ]
+    );
+
+    // 2. Get current participants (excluding creator)
+    const [currentParticipants] = await pool.query(
+      `SELECT employee_id FROM task_participants 
+       WHERE task_id = ? AND is_creator = false`,
+      [taskId]
+    );
+    const currentParticipantIds = currentParticipants.map(p => p.employee_id);
+
+    // 3. Determine participants to add and remove
+    const newParticipantIds = included_people || [];
+    const participantsToAdd = newParticipantIds.filter(
+      id => !currentParticipantIds.includes(id)
+    );
+    const participantsToRemove = currentParticipantIds.filter(
+      id => !newParticipantIds.includes(id)
+    );
+
+    // 4. Remove participants no longer included
+    if (participantsToRemove.length > 0) {
+      await pool.query(
+        `DELETE FROM task_participants 
+         WHERE task_id = ? AND employee_id IN (?) AND is_creator = false`,
+        [taskId, participantsToRemove]
+      );
+    }
+
+    // 5. Add new participants
+    if (participantsToAdd.length > 0) {
+      for (const employeeId of participantsToAdd) {
+        try {
+          await pool.query(
+            `INSERT INTO task_participants (id, task_id, employee_id) 
+             VALUES (?, ?, ?)`,
+            [uuidv4(), taskId, employeeId]
+          );
+        } catch (err) {
+          // Skip duplicate entries
+          if (err.code !== 'ER_DUP_ENTRY') throw err;
+        }
+      }
+    }
+
+    // 6. Notify all participants about the update
+    const [allParticipants] = await pool.query(
+      `SELECT employee_id FROM task_participants WHERE task_id = ?`,
+      [taskId]
+    );
+
+    for (const participant of allParticipants) {
+      await pool.query(
+        `INSERT INTO notificationstask (
+          id, employee_id, task_id, title, message, type, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          uuidv4(),
+          participant.employee_id,
+          taskId,
+          'Task Updated',
+          `Task "${task_name}" was updated.`,
+          'task_update'
+        ]
+      );
+    }
+
+    await pool.query('COMMIT');
+
+    // Get the updated task with participants to return
+    const [updatedTask] = await pool.query(
+      `SELECT t.*, 
+        (SELECT GROUP_CONCAT(employee_id) 
+         FROM task_participants 
+         WHERE task_id = t.id AND is_creator = false) AS participant_ids
+       FROM tasks t WHERE t.id = ?`,
+      [taskId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Task updated successfully',
+      task: updatedTask[0]
+    });
+
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error editing task:', err);
+    res.status(500).json({ 
+      error: 'Failed to edit task', 
+      details: err.message 
+    });
+  }
+},
 
 }
 

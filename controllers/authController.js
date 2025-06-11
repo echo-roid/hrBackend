@@ -1,5 +1,7 @@
 const pool = require('../config/db');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');  // <-- add this line!
+
 const jwt = require('jsonwebtoken');
 const path = require('path');
 
@@ -161,7 +163,86 @@ const authController = {
       console.error('Get Profile Error:', error);
       res.status(500).json({ success: false, error: 'Internal server error' });
     }
+  },
+  forgotPassword: async (req, res) => {
+  try {
+    const { email } = req.body;
+    console.log(email, "Requested for password reset");
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+
+    const [employees] = await pool.execute(
+      'SELECT id FROM employees WHERE email = ?',
+      [email]
+    );
+
+    if (employees.length === 0) {
+      return res.status(404).json({ success: false, error: 'No user found with that email' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiration = new Date(Date.now() + 3600000); // 1 hour
+
+    await pool.execute(
+      'UPDATE employees SET reset_token = ?, reset_token_expiration = ? WHERE email = ?',
+      [token, expiration, email]
+    );
+
+    const resetLink = `${req.protocol}://${req.get('host')}/reset-password/${token}`;
+
+    // For development: log and send the token/link in response
+    console.log(`🔗 Reset password link: ${resetLink}`);
+
+    res.json({
+      success: true,
+      message: 'Password reset link sent to your email (simulated)',
+      token,        // 🔐 Expose token for dev/testing
+      resetLink     // 🌐 Optional: full link in response
+    });
+
+  } catch (error) {
+    console.error('Forgot Password Error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
+}
+,
+
+resetPassword: async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Token and new password are required' });
+    }
+
+    const [employees] = await pool.execute(
+      'SELECT * FROM employees WHERE reset_token = ? AND reset_token_expiration > NOW()',
+      [token]
+    );
+
+    if (employees.length === 0) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired token' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await pool.execute(
+      'UPDATE employees SET password = ?, reset_token = NULL, reset_token_expiration = NULL WHERE reset_token = ?',
+      [hashedPassword, token]
+    );
+
+    res.json({ success: true, message: 'Password reset successful' });
+
+  } catch (error) {
+    console.error('Reset Password Error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+},
+
+
 };
 
 module.exports = authController;

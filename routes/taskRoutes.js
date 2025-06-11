@@ -9,4 +9,5 @@ router.get('/tasks' , taskController.getUserTasks);
 router.put('/tasks/:id/status', taskController.updateTaskStatus);
 router.post('/tasks/notify', taskController.sendTaskNotification);
 router.get('/tasks/notifyGet', taskController.getTaskNotifications);
+router.put('/tasks/:id', taskController.editTask);
 module.exports = router;
