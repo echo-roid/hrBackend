@@ -13,8 +13,7 @@ const server = http.createServer(app);
 
 // Configuration
 const PORT = process.env.PORT || 5000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://hr-panel-hzi3.vercel.app';
-
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://hr-panel-f6dd.vercel.app';
 
 // ✅ Middleware Setup
 app.use(cors({
@@ -67,8 +66,10 @@ const registerRoutes = () => {
     app.use('/api/employees', loadRoute('./routes/employeeRoutes', 'Employee Routes'));
     app.use('/api/tasks', loadRoute('./routes/taskRoutes', 'Task Routes'));
     app.use('/api/calendar', loadRoute('./routes/calendarRoutes', 'Calendar Routes'));
-    
-    // Authentication Routes
+    app.use('/api/leads', loadRoute('./routes/leadRoutes', 'Leads Routes'));
+    app.use('/api/contacts', loadRoute('./routes/contactRoutes', 'Contacts Routes'));
+    app.use('/api/companies', loadRoute('./routes/companyRoutes', 'Company Routes'));
+    // Authentication Routes  
     app.use('/api/auth', authLimiter, loadRoute('./routes/authRoutes', 'Auth Routes'));
     
     // Attendance System Routes

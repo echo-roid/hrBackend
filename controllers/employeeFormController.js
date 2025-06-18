@@ -1,7 +1,7 @@
 const pool = require('../config/db');
 
 
-const BASE_URL = 'https://hrbackend-production-34b4.up.railway.app'; // Adjust if deployed
+const BASE_URL = 'http://localhost:5000'; // Adjust if deployed
 
 function getFullUrl(filePath) {
     return filePath ? `${BASE_URL}/${filePath.replace(/\\/g, '/')}` : null;

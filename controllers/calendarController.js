@@ -140,7 +140,7 @@ addEvent: async (req, res) => {
 listEvents: async (req, res) => {
   try {
     const { month, year, userEmail, userId } = req.query;
-    console.log(userEmail, "userEmail");
+   
 
     let eventsQuery = `
       SELECT 
@@ -214,14 +214,27 @@ listEvents: async (req, res) => {
       }
 
       const isOrganizer = userId && event.organizer_id == userId;
-
+      const isCorporateEvent = event.event_type === 'corporate_event';
+      
       const isAttendee = event.attendees.some(attendee => {
         const email = typeof attendee === 'string' ? attendee : attendee?.email;
         return email && userEmail && email.toLowerCase() === userEmail.toLowerCase();
       });
+      
 
-      // Show if not a meeting, or if user is organizer or attendee
-      if (!event.is_meeting || isOrganizer || isAttendee) {
+      // Updated visibility rules with corporate event restriction
+      if (isCorporateEvent) {
+        // Corporate events only visible to organizer
+        if (isOrganizer) {
+          visibleEvents.push(event);
+        }
+      } else if (event.is_meeting) {
+        // Meeting events visible to organizer and attendees
+        if (isOrganizer || isAttendee) {
+          visibleEvents.push(event);
+        }
+      } else {
+        // Regular events visible to everyone
         visibleEvents.push(event);
       }
     });
@@ -256,10 +269,7 @@ listEvents: async (req, res) => {
       details: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }
-}
-
-
-,
+},
 
 
   // Update event
