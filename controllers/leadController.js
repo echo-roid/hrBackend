@@ -200,9 +200,58 @@ const deleteLead = async (req, res) => {
   }
 };
 
+const updateRfqStatus = async (req, res) => {
+  const leadId = req.params.id;
+  const { rfqStatus } = req.body;
+
+  if (!rfqStatus) {
+    return res.status(400).json({ message: 'RFQ status is required' });
+  }
+
+  try {
+    // Update only the rfq_status field
+    const [result] = await pool.query(
+      'UPDATE leads SET rfq_status = ? WHERE id = ?',
+      [rfqStatus, leadId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    // Fetch the updated lead
+    const [updatedLead] = await pool.query(
+      'SELECT * FROM leads WHERE id = ?', 
+      [leadId]
+    );
+    
+    res.json(parseLead(updatedLead[0]));
+  } catch (error) {
+    console.error('Error updating RFQ status:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+const getWonLeads = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM leads WHERE rfq_status = ? ORDER BY created_at DESC',
+      ['Won']
+    );
+    
+    const wonLeads = rows.map(parseLead);
+    res.json(wonLeads);
+  } catch (error) {
+    console.error('Error fetching won leads:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
 module.exports = {
   getLeads,
   createLead,
   updateLead,
-  deleteLead
+  deleteLead,
+  updateRfqStatus,   // Add the new status update endpoint
+  getWonLeads        // Add the new won leads endpoint
 };
