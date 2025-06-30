@@ -13,7 +13,7 @@ const server = http.createServer(app);
 
 // Configuration
 const PORT = process.env.PORT || 5000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://hr-panel-6zig.vercel.app';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
 
 // ✅ Middleware Setup
 app.use(cors({
@@ -69,6 +69,7 @@ const registerRoutes = () => {
     app.use('/api/leads', loadRoute('./routes/leadRoutes', 'Leads Routes'));
     app.use('/api/contacts', loadRoute('./routes/contactRoutes', 'Contacts Routes'));
     app.use('/api/companies', loadRoute('./routes/companyRoutes', 'Company Routes'));
+    app.use('/api/forms', loadRoute('./routes/formRoutes', 'form Routes'));
     // Authentication Routes  
     app.use('/api/auth', authLimiter, loadRoute('./routes/authRoutes', 'Auth Routes'));
     
