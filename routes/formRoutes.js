@@ -22,4 +22,7 @@ router.get('/:formId/submissions', formController.getFormSubmissions);
 
 router.put('/:formId', formController.updateForm);
 
+router.post('/:formId/clone', formController.cloneForm);
+
+
 module.exports = router;
